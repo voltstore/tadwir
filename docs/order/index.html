@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>تأكيد طلبك في تدوير | Tadwir</title>
+<link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+<main class="card">
+  <div class="logo">♻️</div>
+  <h1>تأكيد طلبك في تدوير</h1>
+  <p class="sub">أدخل رقم جوالك وراح توصلك رسالة تأكيد الطلب.</p>
+  <form id="form" autocomplete="off">
+    <label for="phone">رقم الجوال</label>
+    <div class="row">
+      <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="5xxxxxxxx" required>
+      <select id="country" name="country">
+        <option value="SA">🇸🇦 +966</option>
+        <option value="EG">🇪🇬 +20</option>
+        <option value="LB">🇱🇧 +961</option>
+        <option value="AE">🇦🇪 +971</option>
+        <option value="KW">🇰🇼 +965</option>
+        <option value="BH">🇧🇭 +973</option>
+        <option value="QA">🇶🇦 +974</option>
+        <option value="OM">🇴🇲 +968</option>
+        <option value="JO">🇯🇴 +962</option>
+        <option value="IQ">🇮🇶 +964</option>
+      </select>
+    </div>
+    <button id="btn" type="submit">أكّد الطلب</button>
+    <div id="msg" role="status" aria-live="polite"></div>
+  </form>
+  <footer>نموذج تجريبي · Demo</footer>
+</main>
+<script src="../config.js"></script>
+<script>window.CONFIG = { ...window.CONFIG_BASE, KIND: "order" };</script>
+<script src="../shared/app.js"></script>
+</body>
+</html>
