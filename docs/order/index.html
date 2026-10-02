@@ -8,38 +8,25 @@
 </head>
 <body>
 <main class="card">
+  <div class="langs" role="group" aria-label="Language">
+    <button type="button" data-lang="ar" aria-pressed="true">العربية</button>
+    <button type="button" data-lang="en" aria-pressed="false">English</button>
+  </div>
   <div class="logo">♻️</div>
-  <h1>تأكيد طلبك في تدوير</h1>
-  <p class="sub">أدخل رقم جوالك وراح توصلك رسالة تأكيد الطلب.</p>
+  <h1 id="h1">تأكيد طلبك في تدوير</h1>
+  <p class="sub" id="sub"></p>
   <form id="form" autocomplete="off">
-    <label for="country">الدولة</label>
+    <label for="country" id="countryLabel">الدولة</label>
+    <select id="country" name="country"><option value="EG">🇪🇬 مصر</option></select>
+    <label for="phone" id="phoneLabel">رقم الجوال</label>
     <div class="row">
-      <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="رقم الجوال" required>
-      <select id="country" name="country">
-        <option value="EG">🇪🇬 مصر</option>
-        <option value="SA">🇸🇦 السعودية</option>
-        <option value="AE">🇦🇪 الإمارات</option>
-        <option value="KW">🇰🇼 الكويت</option>
-        <option value="BH">🇧🇭 البحرين</option>
-        <option value="QA">🇶🇦 قطر</option>
-        <option value="OM">🇴🇲 عُمان</option>
-        <option value="JO">🇯🇴 الأردن</option>
-        <option value="LB">🇱🇧 لبنان</option>
-        <option value="IQ">🇮🇶 العراق</option>
-        <option value="SY">🇸🇾 سوريا</option>
-        <option value="YE">🇾🇪 اليمن</option>
-        <option value="PS">🇵🇸 فلسطين</option>
-        <option value="LY">🇱🇾 ليبيا</option>
-        <option value="SD">🇸🇩 السودان</option>
-        <option value="TN">🇹🇳 تونس</option>
-        <option value="DZ">🇩🇿 الجزائر</option>
-        <option value="MA">🇲🇦 المغرب</option>
-      </select>
+      <span class="dial" id="dial">+20</span>
+      <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="5xxxxxxxx" required>
     </div>
-    <button id="btn" type="submit">أكّد الطلب</button>
+    <button id="btn" class="submit" type="submit">أكّد الطلب</button>
     <div id="msg" role="status" aria-live="polite"></div>
   </form>
-  <footer>نموذج تجريبي · Demo</footer>
+  <footer id="demo">نموذج تجريبي · Demo</footer>
 </main>
 <script src="../config.js"></script>
 <script>window.CONFIG = { ...window.CONFIG_BASE, KIND: "order" };</script>
