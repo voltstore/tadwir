@@ -27,7 +27,8 @@ const T = {
       welcome: { sms: "أدخل رقم جوالك وراح توصلك رسالة ترحيب.", email: "أدخل بريدك الإلكتروني وراح توصلك رسالة ترحيب." },
       order: { sms: "أدخل رقم جوالك وراح توصلك رسالة تأكيد الطلب.", email: "أدخل بريدك الإلكتروني وراح توصلك رسالة تأكيد الطلب." },
     },
-    langLabel: "اللغة", country: "الدولة", phone: "رقم الجوال", email: "البريد الإلكتروني",
+    langLabel: "اللغة", country: "الدولة", method: "طريقة الاستلام", phone: "رقم الجوال", email: "البريد الإلكتروني",
+    smsUnsupported: "النظام ما يدعم الرسائل النصية لهذه الدولة، تقدر تستلم الرسالة على بريدك الإلكتروني.",
     btn: { welcome: "أرسل الرسالة", order: "أكّد الطلب" },
     demo: "نموذج تجريبي · Demo",
     okSms: "تم الإرسال ✅ تفقد رسائلك.",
@@ -35,6 +36,7 @@ const T = {
     errors: {
       bad_phone: "الرقم غير صحيح، تأكد من الدولة والرقم.",
       bad_email: "البريد الإلكتروني غير صحيح.",
+      sms_unsupported: "النظام ما يدعم الرسائل النصية لهذه الدولة، استخدم البريد الإلكتروني.",
       country_not_allowed: "هذي الدولة غير مدعومة حالياً.",
       phone_limit: "وصلت الحد المسموح لهذا الرقم اليوم.",
       ip_limit: "طلبات كثيرة، حاول بعد ساعة.",
@@ -55,7 +57,8 @@ const T = {
       welcome: { sms: "Enter your phone number and we'll text you a welcome message.", email: "Enter your email and we'll send you a welcome message." },
       order: { sms: "Enter your phone number and we'll text you your order confirmation.", email: "Enter your email and we'll send you your order confirmation." },
     },
-    langLabel: "Language", country: "Country", phone: "Phone number", email: "Email address",
+    langLabel: "Language", country: "Country", method: "Receive by", phone: "Phone number", email: "Email address",
+    smsUnsupported: "Text messages (SMS) are not supported for this country. You can receive the message by email instead.",
     btn: { welcome: "Send message", order: "Confirm order" },
     demo: "Demo · نموذج تجريبي",
     okSms: "Sent ✅ Check your messages.",
@@ -63,6 +66,7 @@ const T = {
     errors: {
       bad_phone: "Invalid number. Check the country and the number.",
       bad_email: "Invalid email address.",
+      sms_unsupported: "Text messages are not supported for this country. Please use email.",
       country_not_allowed: "This country is not supported yet.",
       phone_limit: "This number reached today's limit.",
       ip_limit: "Too many requests. Try again in an hour.",
@@ -90,7 +94,9 @@ try {
   else if (!/^ar/i.test(navigator.language || "ar")) lang = "en";
 } catch (e) {}
 
-const isEmailMode = () => !SMS_COUNTRIES.includes(country.value);
+const smsOk = () => SMS_COUNTRIES.includes(country.value);
+let method = "sms";
+const isEmailMode = () => method === "email";
 
 function buildCountries() {
   const cur = country.value || "EG";
@@ -105,7 +111,15 @@ function buildCountries() {
 }
 
 function applyMode(clear) {
-  const t = T[lang], em = isEmailMode();
+  const t = T[lang];
+  if (!smsOk()) method = "email";
+  const em = isEmailMode();
+  $("methodLabel").textContent = t.method;
+  document.querySelectorAll("[data-method]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.method === method));
+    b.textContent = b.dataset.method === "sms" ? t.phone : t.email;
+    b.classList.toggle("off", b.dataset.method === "sms" && !smsOk());
+  });
   if (clear) phone.value = "";
   phone.type = em ? "email" : "tel";
   phone.inputMode = em ? "email" : "tel";
@@ -138,7 +152,23 @@ document.querySelectorAll("[data-lang]").forEach((b) =>
     applyLang();
   })
 );
-country.addEventListener("change", () => applyMode(true));
+country.addEventListener("change", () => {
+  msg.textContent = ""; msg.className = "";
+  method = smsOk() ? "sms" : "email";
+  applyMode(true);
+});
+document.querySelectorAll("[data-method]").forEach((b) =>
+  b.addEventListener("click", () => {
+    msg.textContent = ""; msg.className = "";
+    if (b.dataset.method === "sms" && !smsOk()) {
+      msg.className = "info";
+      msg.textContent = T[lang].smsUnsupported;
+      return;
+    }
+    method = b.dataset.method;
+    applyMode(true);
+  })
+);
 applyLang();
 
 let captchaToken = "";
@@ -167,6 +197,7 @@ form.addEventListener("submit", async (e) => {
       body: JSON.stringify({
         kind: KIND,
         country: country.value,
+        method,
         ...(em ? { email: phone.value } : { phone: phone.value }),
         captcha: captchaToken,
       }),
