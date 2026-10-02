@@ -18,6 +18,11 @@
   <form id="form" autocomplete="off">
     <label for="country" id="countryLabel">الدولة</label>
     <select id="country" name="country"><option value="EG">🇪🇬 مصر</option></select>
+    <label id="methodLabel">طريقة الاستلام</label>
+    <div class="seg" role="group" aria-label="Method">
+      <button type="button" data-method="sms" aria-pressed="true">رقم الجوال</button>
+      <button type="button" data-method="email" aria-pressed="false">البريد الإلكتروني</button>
+    </div>
     <label for="phone" id="phoneLabel">رقم الجوال</label>
     <div class="row">
       <span class="dial" id="dial">+20</span>
