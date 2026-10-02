@@ -8,11 +8,28 @@ const ERRORS = {
   captcha: "فشل التحقق، حدّث الصفحة وحاول مرة ثانية.",
   send_failed: "تعذر إرسال الرسالة، حاول لاحقاً.",
   origin: "هذا الموقع غير مصرح له.",
+  channel_unavailable: "الإرسال لهذه الدولة غير متاح حالياً.",
+  bad_email: "البريد الإلكتروني غير صحيح.",
 };
 
 const form = document.getElementById("form");
 const msg = document.getElementById("msg");
 const btn = document.getElementById("btn");
+
+// مصر SMS برقم الجوال، وباقي الدول يدخل العميل إيميله
+const SMS_COUNTRIES = window.CONFIG.SMS_COUNTRIES || ["EG"];
+const lbl = document.querySelector('label[for="phone"]');
+const isEmailMode = () => !SMS_COUNTRIES.includes(form.country.value);
+function applyMode() {
+  const em = isEmailMode();
+  form.phone.type = em ? "email" : "tel";
+  form.phone.inputMode = em ? "email" : "tel";
+  form.phone.placeholder = em ? "name@example.com" : "5xxxxxxxx";
+  form.phone.value = "";
+  if (lbl) lbl.textContent = em ? "البريد الإلكتروني" : "رقم الجوال";
+}
+form.country.addEventListener("change", applyMode);
+applyMode();
 
 let captchaToken = "";
 if (window.CONFIG.TURNSTILE_SITEKEY) {
@@ -40,14 +57,14 @@ form.addEventListener("submit", async (e) => {
       body: JSON.stringify({
         kind: window.CONFIG.KIND,
         country: form.country.value,
-        phone: form.phone.value,
+        ...(isEmailMode() ? { email: form.phone.value } : { phone: form.phone.value }),
         captcha: captchaToken,
       }),
     });
     const data = await r.json().catch(() => ({}));
     if (r.ok && data.ok) {
       msg.className = "ok";
-      msg.textContent = "تم الإرسال ✅ تفقد رسائلك.";
+      msg.textContent = isEmailMode() ? "تم الإرسال ✅ تفقد بريدك (وصندوق الرسائل غير المرغوبة)." : "تم الإرسال ✅ تفقد رسائلك.";
       form.phone.value = "";
     } else {
       msg.className = "err";
