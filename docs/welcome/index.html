@@ -125,6 +125,18 @@ footer{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);text-al
 @media (max-width:380px){.card{padding:0 18px 20px}.logo{margin:0 -18px 20px;height:128px;background-size:auto 52px,auto,auto}h1{font-size:21px}}
 @media (prefers-reduced-motion:reduce){.card,.logo::after{animation:none}button,button:hover{transition:none;transform:none}}
 
+/* ---- Verify step ---- */
+.step[hidden]{display:none}
+.sent-to{margin:4px 0 2px;text-align:center;font-size:14px;color:var(--muted)}
+.sent-to b{color:var(--heading);direction:ltr;unicode-bidi:isolate}
+.otp{width:100%;text-align:center;font-size:30px;font-weight:700;letter-spacing:.9em;padding:14px 10px 14px calc(10px + .9em);direction:ltr}
+.links{display:flex;justify-content:space-between;gap:10px;margin-top:14px;font-size:13.5px}
+.link{width:auto;margin:0;padding:0;background:none;border:0;box-shadow:none;color:var(--ok);font-weight:600;font-size:13.5px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.link:hover{background:none;transform:none;box-shadow:none;color:var(--ok);opacity:.85}
+.link:disabled{color:var(--muted);text-decoration:none;cursor:default;opacity:1}
+.done{text-align:center;padding:10px 0 4px}
+.done-ic{width:72px;height:72px;margin:6px auto 12px;border-radius:50%;display:grid;place-items:center;background:rgba(106,176,76,.15);color:var(--ok);font-size:38px;font-weight:700;animation:pop .5s cubic-bezier(.22,.8,.24,1)}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
 </style>
 </head>
 <body>
@@ -135,261 +147,266 @@ footer{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);text-al
   </div>
   <div class="logo" role="img" aria-label="تدوير | Tadwir"></div>
   <h1 id="h1">مرحباً بك في تدوير</h1>
-  <p class="sub" id="sub"></p>
-  <form id="form" autocomplete="off">
+
+  <!-- Step 1: where to send the code -->
+  <form class="step" id="step1" autocomplete="off" novalidate>
+    <p class="sub" id="sub1"></p>
     <label for="country" id="countryLabel">الدولة</label>
-    <select id="country" name="country"><option value="EG">🇪🇬 مصر</option></select>
+    <select id="country" name="country"></select>
     <label id="methodLabel">طريقة الاستلام</label>
     <div class="seg" role="group" aria-label="Method">
       <button type="button" data-method="sms" aria-pressed="true">رقم الجوال</button>
       <button type="button" data-method="email" aria-pressed="false">البريد الإلكتروني</button>
     </div>
-    <label for="phone" id="phoneLabel">رقم الجوال</label>
+    <label for="to" id="toLabel">رقم الجوال</label>
     <div class="row">
       <span class="dial" id="dial">+20</span>
-      <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="5xxxxxxxx" required>
+      <input id="to" name="to" type="tel" inputmode="tel" placeholder="5xxxxxxxx" required>
     </div>
-    <button id="btn" class="submit" type="submit">أرسل الرسالة</button>
-    <div id="msg" role="status" aria-live="polite"></div>
+    <button id="sendBtn" type="submit">أرسل رمز التحقق</button>
   </form>
+
+  <!-- Step 2: enter the code -->
+  <form class="step" id="step2" autocomplete="off" novalidate hidden>
+    <p class="sent-to"><span id="sentLabel">أرسلنا رمز التحقق إلى</span><br><b id="sentTo"></b></p>
+    <label for="code" id="codeLabel">رمز التحقق</label>
+    <input id="code" class="otp" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="••••" required>
+    <button id="checkBtn" type="submit">تحقق</button>
+    <div class="links">
+      <button type="button" class="link" id="resendBtn">إعادة الإرسال</button>
+      <button type="button" class="link" id="changeBtn">تغيير الرقم</button>
+    </div>
+  </form>
+
+  <!-- Step 3: verified -->
+  <section class="step done" id="step3" hidden>
+    <div class="done-ic" aria-hidden="true">✓</div>
+    <h2 id="doneTitle" style="margin:0 0 6px;color:var(--heading)">تم التحقق بنجاح</h2>
+    <p class="sub" id="doneSub" style="margin:0"></p>
+  </section>
+
+  <div id="msg" role="status" aria-live="polite"></div>
   <footer id="demo">نموذج تجريبي · Demo</footer>
 </main>
-<script>
-// بعد ما تنشر الـ Worker، حط رابطه هنا (مثال: https://tadwir-sms.اسمك.workers.dev)
-window.CONFIG_BASE = {
-  API_URL: "https://tadwir-sms.tadwir.workers.dev",
-  // اختياري: Site Key من Cloudflare Turnstile (اتركه فاضي لو ما تبي كابتشا)
-  TURNSTILE_SITEKEY: "",
-  // الدول اللي ترسل SMS (برقم الجوال). باقي الدول إيميل. لازم تطابق الوسيط
-  SMS_COUNTRIES: ["EG"],
-};
 
-</script>
-<script>window.CONFIG = { ...window.CONFIG_BASE, KIND: "welcome" };</script>
 <script>
+/* ===== الإعدادات: رابط Worker التحقق ===== */
+const VERIFY_URL = "https://tadwir-sms.tadwir.workers.dev/otp";
+const SMS_COUNTRIES = ["EG"];   /* نفس CHANNELS في الوسيط: الدول اللي توصلها SMS */
+const RESEND_SECONDS = 30;
+const CODE_LENGTH = 4;   // نفس طول الرمز في إعدادات Twilio Verify
+
 const COUNTRIES = [
-  ["EG","🇪🇬","مصر","Egypt","+20"],
-  ["SA","🇸🇦","السعودية","Saudi Arabia","+966"],
-  ["AE","🇦🇪","الإمارات","United Arab Emirates","+971"],
-  ["KW","🇰🇼","الكويت","Kuwait","+965"],
-  ["BH","🇧🇭","البحرين","Bahrain","+973"],
-  ["QA","🇶🇦","قطر","Qatar","+974"],
-  ["OM","🇴🇲","عُمان","Oman","+968"],
-  ["JO","🇯🇴","الأردن","Jordan","+962"],
-  ["LB","🇱🇧","لبنان","Lebanon","+961"],
-  ["IQ","🇮🇶","العراق","Iraq","+964"],
-  ["SY","🇸🇾","سوريا","Syria","+963"],
-  ["YE","🇾🇪","اليمن","Yemen","+967"],
-  ["PS","🇵🇸","فلسطين","Palestine","+970"],
-  ["LY","🇱🇾","ليبيا","Libya","+218"],
-  ["SD","🇸🇩","السودان","Sudan","+249"],
-  ["TN","🇹🇳","تونس","Tunisia","+216"],
-  ["DZ","🇩🇿","الجزائر","Algeria","+213"],
-  ["MA","🇲🇦","المغرب","Morocco","+212"],
+  ["EG","🇪🇬","مصر","Egypt","+20"],["SA","🇸🇦","السعودية","Saudi Arabia","+966"],
+  ["AE","🇦🇪","الإمارات","United Arab Emirates","+971"],["KW","🇰🇼","الكويت","Kuwait","+965"],
+  ["BH","🇧🇭","البحرين","Bahrain","+973"],["QA","🇶🇦","قطر","Qatar","+974"],
+  ["OM","🇴🇲","عُمان","Oman","+968"],["JO","🇯🇴","الأردن","Jordan","+962"],
+  ["LB","🇱🇧","لبنان","Lebanon","+961"],["IQ","🇮🇶","العراق","Iraq","+964"],
+  ["SY","🇸🇾","سوريا","Syria","+963"],["YE","🇾🇪","اليمن","Yemen","+967"],
+  ["PS","🇵🇸","فلسطين","Palestine","+970"],["LY","🇱🇾","ليبيا","Libya","+218"],
+  ["SD","🇸🇩","السودان","Sudan","+249"],["TN","🇹🇳","تونس","Tunisia","+216"],
+  ["DZ","🇩🇿","الجزائر","Algeria","+213"],["MA","🇲🇦","المغرب","Morocco","+212"],
 ];
 
 const T = {
-  ar: {
-    dir: "rtl",
-    title: { welcome: "مرحباً بك في تدوير", order: "تأكيد طلبك في تدوير" },
-    sub: {
-      welcome: { sms: "أدخل رقم جوالك وراح توصلك رسالة ترحيب.", email: "أدخل بريدك الإلكتروني وراح توصلك رسالة ترحيب." },
-      order: { sms: "أدخل رقم جوالك وراح توصلك رسالة تأكيد الطلب.", email: "أدخل بريدك الإلكتروني وراح توصلك رسالة تأكيد الطلب." },
-    },
-    langLabel: "اللغة", country: "الدولة", method: "طريقة الاستلام", phone: "رقم الجوال", email: "البريد الإلكتروني",
-    smsUnsupported: "النظام ما يدعم الرسائل النصية لهذه الدولة، تقدر تستلم الرسالة على بريدك الإلكتروني.",
-    btn: { welcome: "أرسل الرسالة", order: "أكّد الطلب" },
-    demo: "نموذج تجريبي · Demo",
-    okSms: "تم الإرسال ✅ تفقد رسائلك.",
-    okEmail: "تم الإرسال ✅ تفقد بريدك (وصندوق الرسائل غير المرغوبة).",
-    errors: {
-      bad_phone: "الرقم غير صحيح، تأكد من الدولة والرقم.",
-      bad_email: "البريد الإلكتروني غير صحيح.",
-      sms_unsupported: "النظام ما يدعم الرسائل النصية لهذه الدولة، استخدم البريد الإلكتروني.",
-      country_not_allowed: "هذي الدولة غير مدعومة حالياً.",
-      phone_limit: "وصلت الحد المسموح لهذا الرقم اليوم.",
-      ip_limit: "طلبات كثيرة، حاول بعد ساعة.",
-      daily_cap: "الخدمة وصلت حدها اليومي، حاول بكرة.",
-      country_quota: "الخدمة غير متاحة لهذه الدولة حالياً.",
-      captcha: "فشل التحقق، حدّث الصفحة وحاول مرة ثانية.",
-      send_failed: "تعذر إرسال الرسالة، حاول لاحقاً.",
-      origin: "هذا الموقع غير مصرح له.",
-      channel_unavailable: "الإرسال لهذه الدولة غير متاح حالياً.",
-      other: "صار خطأ، حاول مرة ثانية.",
-      network: "تعذر الاتصال بالخدمة.",
-    },
-  },
-  en: {
-    dir: "ltr",
-    title: { welcome: "Welcome to Tadwir", order: "Confirm your Tadwir order" },
-    sub: {
-      welcome: { sms: "Enter your phone number and we'll text you a welcome message.", email: "Enter your email and we'll send you a welcome message." },
-      order: { sms: "Enter your phone number and we'll text you your order confirmation.", email: "Enter your email and we'll send you your order confirmation." },
-    },
-    langLabel: "Language", country: "Country", method: "Receive by", phone: "Phone number", email: "Email address",
-    smsUnsupported: "Text messages (SMS) are not supported for this country. You can receive the message by email instead.",
-    btn: { welcome: "Send message", order: "Confirm order" },
-    demo: "Demo · نموذج تجريبي",
-    okSms: "Sent ✅ Check your messages.",
-    okEmail: "Sent ✅ Check your inbox (and spam folder).",
-    errors: {
-      bad_phone: "Invalid number. Check the country and the number.",
-      bad_email: "Invalid email address.",
-      sms_unsupported: "Text messages are not supported for this country. Please use email.",
-      country_not_allowed: "This country is not supported yet.",
-      phone_limit: "This number reached today's limit.",
-      ip_limit: "Too many requests. Try again in an hour.",
-      daily_cap: "The service reached its daily limit. Try tomorrow.",
-      country_quota: "The service is currently unavailable for this country.",
-      captcha: "Verification failed. Refresh the page and try again.",
-      send_failed: "Could not send the message. Try again later.",
-      origin: "This site is not authorized.",
-      channel_unavailable: "Sending to this country is currently unavailable.",
-      other: "Something went wrong. Please try again.",
-      network: "Could not reach the service.",
-    },
-  },
+  ar: { dir:"rtl", title:"مرحباً بك في تدوير",
+    sub:{ sms:"أدخل رقم جوالك وراح يوصلك رمز تحقق.", email:"أدخل بريدك الإلكتروني وراح يوصلك رمز تحقق." },
+    country:"الدولة", method:"طريقة الاستلام", phone:"رقم الجوال", email:"البريد الإلكتروني",
+    send:"أرسل رمز التحقق", sentLabel:"أرسلنا رمز التحقق إلى", code:"رمز التحقق", check:"تحقق",
+    resend:"إعادة الإرسال", resendIn:(s)=>`إعادة الإرسال بعد ${s} ث`, change:"تغيير الرقم", changeEmail:"تغيير البريد",
+    resent:"تم إرسال رمز جديد ✅", doneTitle:"تم التحقق بنجاح", doneSub:"أهلاً بك في تدوير 🌱", welcomedTo:(to)=>`أرسلنا لك رسالة الترحيب على ${to}`, smsUnsupported:"النظام ما يدعم الرسائل النصية لهذه الدولة، تقدر تستلم الرمز على بريدك الإلكتروني.",
+    demo:"نموذج تجريبي · Demo",
+    errors:{ bad_phone:"الرقم غير صحيح، تأكد من الدولة والرقم.", bad_email:"البريد الإلكتروني غير صحيح.",
+      bad_code:"اكتب الرمز كامل (4 أرقام).", wrong_code:"الرمز غير صحيح، حاول مرة ثانية.",
+      expired:"انتهت صلاحية الرمز أو تجاوزت عدد المحاولات، اطلب رمز جديد.",
+      too_many:"محاولات كثيرة، انتظر شوي وحاول مرة ثانية.", sms_unsupported:"هذا الرقم ما يستقبل رسائل نصية.",
+      blocked:"تم إيقاف الإرسال لهذا الرقم مؤقتاً.", country_blocked:"الإرسال لهذه الدولة غير مفعّل حالياً.",
+      email_not_ready:"التحقق بالبريد غير متاح حالياً، استخدم رقم الجوال.", origin:"هذا الموقع غير مصرح له.",
+      not_configured:"الخدمة غير مهيأة بعد.", country_not_allowed:"هذي الدولة غير مدعومة حالياً.", channel_unavailable:"الإرسال لهذه الدولة غير متاح حالياً.", phone_limit:"وصلت الحد المسموح لهذا الرقم اليوم.", ip_limit:"طلبات كثيرة، حاول بعد ساعة.", daily_cap:"الخدمة وصلت حدها اليومي، حاول بكرة.", captcha:"فشل التحقق، حدّث الصفحة وحاول مرة ثانية.", send_failed:"تعذر إرسال الرمز، حاول لاحقاً.",
+      other:"صار خطأ، حاول مرة ثانية.", network:"تعذر الاتصال بالخدمة." } },
+  en: { dir:"ltr", title:"Welcome to Tadwir",
+    sub:{ sms:"Enter your phone number and we'll text you a verification code.", email:"Enter your email and we'll send you a verification code." },
+    country:"Country", method:"Receive by", phone:"Phone number", email:"Email address",
+    send:"Send verification code", sentLabel:"We sent a verification code to", code:"Verification code", check:"Verify",
+    resend:"Resend code", resendIn:(s)=>`Resend in ${s}s`, change:"Change number", changeEmail:"Change email",
+    resent:"A new code was sent ✅", doneTitle:"Verified successfully", doneSub:"Welcome to Tadwir 🌱", welcomedTo:(to)=>`We sent your welcome message to ${to}`, smsUnsupported:"Text messages aren't supported for this country. You can receive the code by email instead.",
+    demo:"Demo · نموذج تجريبي",
+    errors:{ bad_phone:"Invalid number. Check the country and the number.", bad_email:"Invalid email address.",
+      bad_code:"Enter the full 4-digit code.", wrong_code:"Wrong code, please try again.",
+      expired:"The code expired or too many attempts were made. Request a new code.",
+      too_many:"Too many attempts. Please wait a little and try again.", sms_unsupported:"This number can't receive text messages.",
+      blocked:"Sending to this number is temporarily blocked.", country_blocked:"Sending to this country isn't enabled yet.",
+      email_not_ready:"Email verification isn't available yet. Please use your phone number.", origin:"This site is not authorized.",
+      not_configured:"The service isn't set up yet.", country_not_allowed:"This country is not supported yet.", channel_unavailable:"Sending to this country is currently unavailable.", phone_limit:"This number reached today's limit.", ip_limit:"Too many requests. Try again in an hour.", daily_cap:"The service reached its daily limit. Try tomorrow.", captcha:"Verification failed. Refresh the page and try again.", send_failed:"Could not send the code. Try again later.",
+      other:"Something went wrong. Please try again.", network:"Could not reach the service." } },
 };
 
-const KIND = window.CONFIG.KIND;
-const SMS_COUNTRIES = window.CONFIG.SMS_COUNTRIES || ["EG"];
 const $ = (id) => document.getElementById(id);
-const form = $("form"), msg = $("msg"), btn = $("btn"), phone = $("phone"), country = $("country"), dial = $("dial");
-
-let lang = "ar";
+const country = $("country"), toInput = $("to"), dial = $("dial"), msg = $("msg");
+let lang = "ar", method = "sms", target = "", token = "", timer = null, left = 0;
 try {
   const saved = localStorage.getItem("tadwir_lang");
   if (saved === "ar" || saved === "en") lang = saved;
   else if (!/^ar/i.test(navigator.language || "ar")) lang = "en";
 } catch (e) {}
 
-const smsOk = () => SMS_COUNTRIES.includes(country.value);
-let method = "sms";
-const isEmailMode = () => method === "email";
+const dialOf = (code) => (COUNTRIES.find((c) => c[0] === code) || [])[4] || "";
+function say(text, kind) { msg.textContent = text || ""; msg.className = text ? kind : ""; }
 
 function buildCountries() {
   const cur = country.value || "EG";
   country.innerHTML = "";
   for (const [code, flag, ar, en] of COUNTRIES) {
     const o = document.createElement("option");
-    o.value = code;
-    o.textContent = `${flag} ${lang === "ar" ? ar : en}`;
+    o.value = code; o.textContent = `${flag} ${lang === "ar" ? ar : en}`;
     country.appendChild(o);
   }
   country.value = cur;
 }
 
-function applyMode(clear) {
-  const t = T[lang];
+const smsOk = () => SMS_COUNTRIES.includes(country.value);
+function applyMode() {
   if (!smsOk()) method = "email";
-  const em = isEmailMode();
-  $("methodLabel").textContent = t.method;
+  const t = T[lang], em = method === "email";
   document.querySelectorAll("[data-method]").forEach((b) => {
     b.setAttribute("aria-pressed", String(b.dataset.method === method));
     b.textContent = b.dataset.method === "sms" ? t.phone : t.email;
     b.classList.toggle("off", b.dataset.method === "sms" && !smsOk());
   });
-  if (clear) phone.value = "";
-  phone.type = em ? "email" : "tel";
-  phone.inputMode = em ? "email" : "tel";
-  phone.placeholder = em ? "name@example.com" : "5xxxxxxxx";
-  $("phoneLabel").textContent = em ? t.email : t.phone;
-  $("sub").textContent = t.sub[KIND][em ? "email" : "sms"];
+  toInput.type = em ? "email" : "tel";
+  toInput.inputMode = em ? "email" : "tel";
+  toInput.placeholder = em ? "name@example.com" : "5xxxxxxxx";
+  $("toLabel").textContent = em ? t.email : t.phone;
+  $("sub1").textContent = t.sub[method];
   dial.hidden = em;
-  if (!em) dial.textContent = (COUNTRIES.find((c) => c[0] === country.value) || [])[4] || "";
+  dial.textContent = dialOf(country.value);
+  $("changeBtn").textContent = em ? t.changeEmail : t.change;
 }
 
 function applyLang() {
   const t = T[lang];
   document.documentElement.lang = lang;
   document.documentElement.dir = t.dir;
-  document.title = `${t.title[KIND]} | Tadwir`;
-  $("h1").textContent = t.title[KIND];
+  document.title = `${t.title} | Tadwir`;
+  $("h1").textContent = t.title;
   $("countryLabel").textContent = t.country;
-  btn.textContent = t.btn[KIND];
+  $("methodLabel").textContent = t.method;
+  $("sendBtn").textContent = t.send;
+  $("sentLabel").textContent = t.sentLabel;
+  $("codeLabel").textContent = t.code;
+  $("checkBtn").textContent = t.check;
+  $("doneTitle").textContent = t.doneTitle;
+  $("doneSub").textContent = t.doneSub;
   $("demo").textContent = t.demo;
   document.querySelectorAll("[data-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
-  msg.textContent = ""; msg.className = "";
+  say("");
   buildCountries();
-  applyMode(false);
+  applyMode();
+  tick();
 }
 
-document.querySelectorAll("[data-lang]").forEach((b) =>
-  b.addEventListener("click", () => {
-    lang = b.dataset.lang;
-    try { localStorage.setItem("tadwir_lang", lang); } catch (e) {}
-    applyLang();
-  })
-);
-country.addEventListener("change", () => {
-  msg.textContent = ""; msg.className = "";
-  method = smsOk() ? "sms" : "email";
-  applyMode(true);
-});
-document.querySelectorAll("[data-method]").forEach((b) =>
-  b.addEventListener("click", () => {
-    msg.textContent = ""; msg.className = "";
-    if (b.dataset.method === "sms" && !smsOk()) {
-      msg.className = "info";
-      msg.textContent = T[lang].smsUnsupported;
-      return;
-    }
-    method = b.dataset.method;
-    applyMode(true);
-  })
-);
-applyLang();
-
-let captchaToken = "";
-if (window.CONFIG.TURNSTILE_SITEKEY) {
-  const s = document.createElement("script");
-  s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
-  s.async = true;
-  document.head.appendChild(s);
-  const d = document.createElement("div");
-  d.className = "cf-turnstile";
-  d.dataset.sitekey = window.CONFIG.TURNSTILE_SITEKEY;
-  d.dataset.callback = "onCaptcha";
-  btn.before(d);
-  window.onCaptcha = (tk) => (captchaToken = tk);
+function showStep(n) {
+  [1, 2, 3].forEach((i) => ($("step" + i).hidden = i !== n));
 }
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const t = T[lang];
-  msg.className = ""; msg.textContent = ""; btn.disabled = true;
-  const em = isEmailMode();
+/* What we send to the Worker: it validates and formats the number itself */
+let sent = null;
+function buildPayload() {
+  const v = toInput.value.trim();
+  if (!v) return null;
+  return method === "email"
+    ? { country: country.value, method, email: v }
+    : { country: country.value, method, phone: v };
+}
+
+async function call(path, payload) {
   try {
-    const r = await fetch(window.CONFIG.API_URL, {
+    const r = await fetch(VERIFY_URL.replace(/\/+$/, "") + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: KIND,
-        country: country.value,
-        method,
-        ...(em ? { email: phone.value } : { phone: phone.value }),
-        captcha: captchaToken,
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await r.json().catch(() => ({}));
-    if (r.ok && data.ok) {
-      msg.className = "ok";
-      msg.textContent = em ? t.okEmail : t.okSms;
-      phone.value = "";
-    } else {
-      msg.className = "err";
-      msg.textContent = t.errors[data.error] || t.errors.other;
-    }
+    return r.ok && data.ok ? { ok: true, data } : { ok: false, error: data.error || "other" };
   } catch {
-    msg.className = "err";
-    msg.textContent = t.errors.network;
-  } finally {
-    btn.disabled = false;
-    if (window.turnstile) window.turnstile.reset();
-    captchaToken = "";
+    return { ok: false, error: "network" };
+  }
+}
+
+function startCountdown() {
+  left = RESEND_SECONDS;
+  clearInterval(timer);
+  tick();
+  timer = setInterval(() => { left--; tick(); if (left <= 0) clearInterval(timer); }, 1000);
+}
+function tick() {
+  const b = $("resendBtn"), t = T[lang];
+  b.disabled = left > 0;
+  b.textContent = left > 0 ? t.resendIn(left) : t.resend;
+}
+
+async function sendCode(isResend) {
+  const t = T[lang];
+  const btn = isResend ? $("resendBtn") : $("sendBtn");
+  btn.disabled = true; say("");
+  const res = await call("/start", { ...sent, lang, captcha: "" });
+  btn.disabled = false;
+  if (!res.ok) { say(t.errors[res.error] || t.errors.other, "err"); if (isResend) tick(); return false; }
+  token = res.data.token; target = res.data.to || target;
+  if (isResend) say(t.resent, "ok");
+  startCountdown();
+  return true;
+}
+
+/* ---- events ---- */
+document.querySelectorAll("[data-lang]").forEach((b) => b.addEventListener("click", () => {
+  lang = b.dataset.lang;
+  try { localStorage.setItem("tadwir_lang", lang); } catch (e) {}
+  applyLang();
+}));
+document.querySelectorAll("[data-method]").forEach((b) => b.addEventListener("click", () => {
+  if (b.dataset.method === "sms" && !smsOk()) { say(T[lang].smsUnsupported, "info"); return; }
+  method = b.dataset.method; toInput.value = ""; say(""); applyMode();
+}));
+country.addEventListener("change", () => { say(""); method = smsOk() ? "sms" : "email"; toInput.value = ""; applyMode(); });
+
+$("step1").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const t = T[lang];
+  sent = buildPayload();
+  if (!sent) { say(method === "email" ? t.errors.bad_email : t.errors.bad_phone, "err"); return; }
+  if (await sendCode(false)) {
+    $("sentTo").textContent = target;
+    $("code").value = "";
+    showStep(2);
+    $("code").focus();
   }
 });
 
+$("step2").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const t = T[lang], code = $("code").value.replace(/\D/g, "");
+  if (code.length !== CODE_LENGTH) { say(t.errors.bad_code, "err"); return; }
+  const btn = $("checkBtn"); btn.disabled = true; say("");
+  const res = await call("/check", { ...sent, code, token });
+  btn.disabled = false;
+  if (!res.ok) { say(t.errors[res.error] || t.errors.other, "err"); return; }
+  clearInterval(timer);
+  $("doneSub").textContent = res.data.welcomed ? t.welcomedTo(res.data.to || target) : t.doneSub;
+  showStep(3);
+  /* بعد التحقق: لو تبي تنقل المستخدم لصفحة ثانية، فعّل السطر التالي وحط الرابط */
+  // setTimeout(() => { location.href = "https://example.com/next"; }, 1500);
+});
+
+$("code").addEventListener("input", (e) => {
+  e.target.value = e.target.value.replace(/\D/g, "").slice(0, CODE_LENGTH);
+  /* يتحقق تلقائياً أول ما يكتمل الرمز */
+  if (e.target.value.length === CODE_LENGTH && !$("checkBtn").disabled) $("step2").requestSubmit();
+});
+$("resendBtn").addEventListener("click", () => sendCode(true));
+$("changeBtn").addEventListener("click", () => { clearInterval(timer); left = 0; say(""); showStep(1); toInput.focus(); });
+
+applyLang();
 </script>
 </body>
 </html>
